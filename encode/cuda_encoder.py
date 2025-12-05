@@ -2,10 +2,10 @@
 # Copyright (c) 2025 V-Nova International Ltd.
 #!/usr/bin/env python3
 """
-Image Encoder Script using VC-6 CPU Codec.
+Image Encoder Script using VC-6 CUDA based GPU Codec.
 
 This script encodes images in a given directory (or a single file) into the VC-6 format.
-It uses the V-Nova VC-6 codec with CPU backend for encoding.
+It uses the V-Nova VC-6 codec with CUDA GPU backend for encoding.
 
 Features:
 - Encodes each image into `.vc6` format.
@@ -17,23 +17,17 @@ import argparse
 from typing import List
 
 try:
-    from vnova.vc6_opencl import codec as vc6codec
-    from vnova.vc6_opencl import __version__ as vc6version
-    modname = "vnova.vc6_opencl"
+    from vnova.vc6_cu12 import codec as vc6codec
+    from vnova.vc6_cu12 import __version__ as vc6version
 except ModuleNotFoundError:
-    try:
-        from vnova.vc6_cu12 import codec as vc6codec
-        from vnova.vc6_cu12 import __version__ as vc6version
-        modname = "vnova.vc6_cu12"
-    except ModuleNotFoundError:
-        sys.exit(
-            "Missing dependency: need 'vnova.vc6_opencl' or 'vnova.vc6_cu12'.\n"
-            "This sample requires VC-6 Python SDK installed.\n"
-            "Please refer README.md for install instructions.\n"
-            "Please install them and re-run this program."
-        )
-
-print(f"VC-6 CPU available via ({modname} {vc6version}).")
+    sys.exit(
+        "Missing dependency: 'vnova.vc6_cu12'.\n"
+        "This sample requires the VC-6 CUDA Python SDK.\n"
+        "Please refer README.md for install instructions.\n"
+        "Please install them and re-run this program."
+    )
+else:
+    print(f"VC-6 CUDA SDK available : {vc6version}")
 
 from PIL import Image
 
@@ -65,11 +59,11 @@ def encode_images(image_list: List[str], max_width: int, max_height: int, dst_di
         max_height (int): Maximum image height.
         dst_dir (str): Output directory for encoded files.
     """
-    # Initialise a synchronous encoder with CPU backend with max height and max width and CPU memory type.
+    # Initialise a synchronous encoder with CUDA GPU backend with max height and max width and CPU memory type.
     vc6encoder = vc6codec.EncoderSync(
         max_width,
         max_height,
-        vc6codec.CodecBackendType.CPU,
+        vc6codec.CodecBackendType.GPU,
         vc6codec.PictureFormat.RGB_8
     )
     # Set VC-6 Encode parameters

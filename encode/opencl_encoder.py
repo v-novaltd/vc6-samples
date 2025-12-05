@@ -23,7 +23,7 @@ except ModuleNotFoundError:
     sys.exit(
         "Missing dependency: 'vnova.vc6_opencl'.\n"
         "This sample requires the VC-6 OpenCL Python SDK.\n"
-        "You can download the SDK from https://download.v-nova.com. Please refer README.md for more instructions.\n"
+        "Please refer README.md for install instructions.\n"
         "Please install them and re-run this program."
     )
 else:
@@ -64,8 +64,7 @@ def encode_images(image_list: List[str], max_width: int, max_height: int, dst_di
         max_width,
         max_height,
         vc6codec.CodecBackendType.GPU,
-        vc6codec.PictureFormat.RGB_8,
-        vc6codec.ImageMemoryType.CPU
+        vc6codec.PictureFormat.RGB_8
     )
     # Set VC-6 Encode parameters
     vc6encoder.set_profile_from_preset(vc6codec.EncoderProfilePreset.BETTER)

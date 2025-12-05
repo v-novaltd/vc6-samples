@@ -22,14 +22,14 @@ try:
     modname = "vnova.vc6_opencl"
 except ModuleNotFoundError:
     try:
-        from vnova.vc6_cuda12 import codec as vc6codec
-        from vnova.vc6_cuda12 import __version__ as vc6version
-        modname = "vnova.vc6_cuda12"
+        from vnova.vc6_cu12 import codec as vc6codec
+        from vnova.vc6_cu12 import __version__ as vc6version
+        modname = "vnova.vc6_cu12"
     except ModuleNotFoundError:
         sys.exit(
-            "Missing dependency: need 'vnova.vc6_opencl' or 'vnova.vc6_cuda12'.\n"
+            "Missing dependency: need 'vnova.vc6_opencl' or 'vnova.vc6_cu12'.\n"
             "This sample requires VC-6 Python SDK installed.\n"
-            "You can download the SDK from https://download.v-nova.com. Please refer README.md for more instructions.\n"
+            "Please refer README.md for install instructions.\n"
             "Please install them and re-run this program."
         )
 

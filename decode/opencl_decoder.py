@@ -23,7 +23,7 @@ except ModuleNotFoundError:
     sys.exit(
         "Missing dependency: 'vnova.vc6_opencl'.\n"
         "This sample requires the VC-6 OpenCL Python SDK.\n"
-        "You can download the SDK from https://download.v-nova.com. Please refer README.md for more instructions.\n"
+        "Please refer README.md for install instructions.\n"
         "Please install them and re-run this program."
     )
 else:
