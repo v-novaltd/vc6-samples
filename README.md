@@ -140,7 +140,6 @@ options:
 ## Installation 
  The only requirement is Python 3.8 or above.
  Install the package via the provided wheel compatible with your platform and architecture.
- For example, the OpenCL-accelerated codec for Windows (x86): 
 
 ```cmd
 pip install vc6[cu12]
