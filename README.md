@@ -148,7 +148,7 @@ pip install vc6[opencl]
 
 ## Usage
 
-Main codec functionality is inside the `codec` module that can be imported as follow:
+Core codec functionality is inside the `codec` module that can be imported as follow:
 
 ```python
 from `vnova.vc6_opencl` import `codec` as vc6codec
@@ -176,7 +176,7 @@ Then, you can create codecs and start transcoding. For complete examples, see th
 ```
 
 ### GPU memory output
-When using our CUDA package (`vc6_cu12`), the decoder output can be device memory.
+When using our CUDA package (`vc6_cu12`), the decoder output can be in device memory.
 To use this feature, create the decoder with specifying `GPU_DEVICE` as the output memory type.
 With that, the output images will have `__cuda_array_interface__` and can be used with other libraries like CuPy, PyTorch and nvImageCodec.
 
@@ -194,12 +194,12 @@ With that, the output images will have `__cuda_array_interface__` and can be use
 
 Both for sync and async decoders, accessing `__cuda_array_interface__` is blocking and implicitly waits on the result to be ready in the image.
 
-The `__cuda_array_interface__` always contains one-dimensional data of unsigned-8bit type like the CPU version.
+The `__cuda_array_interface__` always contains one-dimensional data of unsigned 8-bit type like the CPU version.
 Adjusting dimensions (or the type in case of 10-bit formats) is up to the user.  
 
-### environment variables:
+### Environment Variables:
 
-Environment variables `OCL_BIN_LOC` and `OCL_DEVICE` can be set to define the GPU binary cache location, and hint for selecting target GPU, respectively.
+Environment variables `OCL_BIN_LOC` and `OCL_DEVICE` can be set to define the GPU binary cache location and hint for selecting target GPU respectively.
 For more details refer to [VC6-SDK documentation](https://docs.v-nova.com/technologies/smpte.vc-6/).
 
 ```cmd
