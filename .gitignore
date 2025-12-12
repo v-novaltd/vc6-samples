@@ -6,3 +6,5 @@ outputs/*
 decoded/*
 cuda_shader_cache
 video
+*__pycache__*
+*.pyc

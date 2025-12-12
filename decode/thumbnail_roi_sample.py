@@ -16,51 +16,26 @@ and extracts Region of interest in the specified loq.
 
 import os
 import sys
-import argparse
+from pathlib import Path
 from typing import List
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-try:
-    from vnova.vc6_opencl import codec as vc6codec
-    from vnova.vc6_opencl import __version__ as vc6version
-    modname = "vnova.vc6_opencl"
-except ModuleNotFoundError:
-    try:
-        from vnova.vc6_cu12 import codec as vc6codec
-        from vnova.vc6_cu12 import __version__ as vc6version
-        modname = "vnova.vc6_cu12"
-    except ModuleNotFoundError:
-        sys.exit(
-            "Missing dependency: need 'vnova.vc6_opencl' or 'vnova.vc6_cu12'.\n"
-            "This sample requires VC-6 Python SDK installed.\n"
-            "Please refer README.md for install instructions.\n"
-            "Please install them and re-run this program."
-        )
-
-print(f"VC-6 available via ({modname} {vc6version}).")
-
-def get_input_paths(root: str) -> List[str]:
-    """
-    Get all file paths in a directory.
-
-    Args:
-        root (str): Path to the directory containing images.
-
-    Returns:
-        List[str]: List of file paths.
-    """
-    try:
-        _, _, files = next(os.walk(root))
-        return [os.path.join(root, fn) for fn in files if os.path.isfile(os.path.join(root, fn))]
-    except StopIteration:
-        print(f"Provided directory is empty or invalid: {root}", file=sys.stderr)
-        return []
+from utils import (
+    load_codec,
+    create_base_argument_parser,
+    get_source_files,
+    setup_output_directory
+)
 
 
-def decode_images(image_list: List[str], max_width: int, max_height: int, roiloq: int, thumbnailloq: int, start_x: int, start_y: int, roi_w: int, roi_h: int, dst_dir: str) -> None:
+def decode_images(vc6codec, image_list: List[str], max_width: int, max_height: int,
+                  roiloq: int, thumbnailloq: int, start_x: int, start_y: int,
+                  roi_w: int, roi_h: int, dst_dir: str) -> None:
     """
     Decode a list of VC-6 images to the specified Region of Interest in the provided Level of Quality into Raw RGB format.
 
     Args:
+        vc6codec: The loaded VC-6 codec module.
         image_list (List[str]): List of image file paths.
         max_width (int): Maximum image width.
         max_height (int): Maximum image height.
@@ -74,9 +49,23 @@ def decode_images(image_list: List[str], max_width: int, max_height: int, roiloq
     """
     try:
         # Set region for decoding
-        region = vc6codec.FrameRegion(roiloq, start_x, start_y, roi_w, roi_h)
+        region = vc6codec.FrameRegion(
+            roiloq,
+            start_x,
+            start_y,
+            roi_w,
+            roi_h)
+
         # Initialise a async decoder with CUDA GPU backend with max height and max width and CPU memory type.
-        vc6decoder = vc6codec.DecoderAsync(max_width, max_height, vc6codec.CodecBackendType.GPU, vc6codec.PictureFormat.RGB_8, vc6codec.ImageMemoryType.CPU, enable_logs=False)
+        vc6decoder = vc6codec.DecoderAsync(
+            max_width,
+            max_height,
+            vc6codec.CodecBackendType.GPU,
+            vc6codec.PictureFormat.RGB_8,
+            vc6codec.ImageMemoryType.CPU,
+            enable_logs=False
+        )
+
         for path in image_list:
             input_bytes = None
             with open(path, "rb") as input_file:
@@ -89,56 +78,33 @@ def decode_images(image_list: List[str], max_width: int, max_height: int, roiloq
                 continue
             width = probe.width
             height = probe.height
-            
+
             basename = os.path.basename(path)
             decoded_name = str(basename.replace(os.path.splitext(basename)[1], ".rgb"))
-            
-            # Decode only required Region of Interest at the provided Level of Quality 
+
             vc6decoder.reconfigure(width, height, vc6codec.PictureFormat.RGB_8)
-            
-            thumbnail_image =  vc6decoder.decode(input_bytes, vc6codec.FrameRegion(thumbnailloq, 0, 0, width, height))
+
+            thumbnail_image = vc6decoder.decode(input_bytes, vc6codec.FrameRegion(thumbnailloq, 0, 0, width, height))
             decoded_path = os.path.join(dst_dir, "thumbnail_" + decoded_name)
             with open(decoded_path, "wb") as decoded_file:
                 decoded_file.write(thumbnail_image.memoryview)
             print(f"Thumbnail Decoded to file : {decoded_path}")
             thumbnail_image.release()
-            
-            roi_image =  vc6decoder.decode(None, region)
+
+            roi_image = vc6decoder.decode(None, region)
             decoded_path = os.path.join(dst_dir, "roi_" + decoded_name)
             with open(decoded_path, "wb") as decoded_file:
                 decoded_file.write(roi_image.memoryview)
             print(f"ROI Decoded to file : {decoded_path}")
             roi_image.release()
 
-
-
     except Exception as e:
-        print(f"Failed to decode {path}: {e}", file=sys.stderr)
+        print(f"Failed to decode: {e}", file=sys.stderr)
 
 
-def parse_arguments() -> argparse.Namespace:
-    """
-    Parse command-line arguments.
-
-    Returns:
-        argparse.Namespace: Parsed arguments.
-    """
-    parser = argparse.ArgumentParser(
-        description="Decode all VC-6 images in a directory (or single VC-6 image) for provided Region of Interest to Raw RGB format.",
-        add_help=False
-    )
-    parser.add_argument(
-        "--help", action="help", help="Show this help message and exit"
-    )
-    parser.add_argument(
-        "-w", "--maxwidth",
-        type=int, default=2048,
-        help="Maximum width of images (default: 2048)"
-    )
-    parser.add_argument(
-        "-h", "--maxheight",
-        type=int, default=2048,
-        help="Maximum height of images (default: 2048)"
+def main() -> None:
+    parser = create_base_argument_parser(
+        "Decode all VC-6 images in a directory for provided Region of Interest to Raw RGB format."
     )
     parser.add_argument(
         "-rl", "--roiloq",
@@ -170,48 +136,22 @@ def parse_arguments() -> argparse.Namespace:
         type=int, default=224,
         help="Height for Region of Interest. (default: 224)"
     )
-    parser.add_argument(
-        "-s", "--source",
-        required=True,
-        help="Path to source directory containing images, or a single image file"
-    )
-    parser.add_argument(
-        "-d", "--destination-dir",
-        required=True,
-        help="Directory to write decoded files"
-    )
-    return parser.parse_args()
+    args = parser.parse_args()
 
-def _is_vc6(path: str) -> bool:
-    """
-    Checks if the file is a VC-6 image based on its extension.
+    vc6codec, vc6version, modname = load_codec("cpu")
+    print(f"Using VC-6 version: {vc6version} via {modname}")
 
-    Args:
-        path (str): Path to the image file.
-    """
-    return os.path.splitext(path)[1].lower() == ".vc6"
+    setup_output_directory(args.destination_dir)
 
-def main() -> None:
-    """Main function."""
-    args = parse_arguments()
-
-    print("Using VC-6 version:", vc6version)
-    os.makedirs(args.destination_dir, exist_ok=True)
-
-    if os.path.isfile(args.source):
-        if not _is_vc6(args.source):
-            print(f"Source file is not a .vc6 image: {args.source}", file=sys.stderr)
-            sys.exit(1)
-        image_list = [args.source]
-    else:
-        # get_input_paths should return files; we keep only .vc6
-        image_list = [p for p in get_input_paths(args.source) if _is_vc6(p)]
+    image_list = get_source_files(args.source, filter_vc6=True)
 
     if not image_list:
         print(f"No .vc6 images found at: {args.source}", file=sys.stderr)
         sys.exit(1)
 
-    decode_images(image_list, args.maxwidth, args.maxheight, args.roiloq, args.thumbnailloq, args.roistartx, args.roistarty, args.roiwidth, args.roiheight, args.destination_dir)
+    decode_images(vc6codec, image_list, args.maxwidth, args.maxheight, args.roiloq,
+                  args.thumbnailloq, args.roistartx, args.roistarty, args.roiwidth,
+                  args.roiheight, args.destination_dir)
 
 
 if __name__ == "__main__":

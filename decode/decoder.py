@@ -1,17 +1,6 @@
 # SPDX-License-Identifier: BSD-3-Clause-Clear
 # Copyright (c) 2025 V-Nova International Ltd.
 #!/usr/bin/env python3
-"""
-Image Decoder Script using VC-6 CUDA based GPU Codec by partially decoding what is required to decode.
-
-This script decodes images in a given directory (or a single file) into raw RGB format.
-It uses the V-Nova VC-6 codec with CUDA based GPU backend for decoding only by accessing
-bytes required to decode.
-
-Features:
-- Decodes each `.vc6` image into raw `.rgb` format.
-"""
-
 import sys
 from pathlib import Path
 from typing import List
@@ -22,6 +11,7 @@ from utils import (
     create_base_argument_parser,
     add_batch_size_argument,
     add_loq_argument,
+    add_backend_argument,
     get_source_files,
     setup_output_directory,
     get_output_path
@@ -29,9 +19,9 @@ from utils import (
 
 
 def decode_images(vc6codec, image_list: List[str], max_width: int, max_height: int,
-                  batch_size: int, loq: int, dst_dir: str) -> None:
+                  batch_size: int, loq: int, dst_dir: str, use_gpu: bool) -> None:
     """
-    Decode a list of VC-6 images into Raw RGB format by only accessing bytes that are needed for the decode.
+    Decode a list of VC-6 images in batches into Raw RGB format.
 
     Args:
         vc6codec: The loaded VC-6 codec module.
@@ -41,29 +31,25 @@ def decode_images(vc6codec, image_list: List[str], max_width: int, max_height: i
         batch_size (int): Batch Size.
         loq (int): Level of Quality.
         dst_dir (str): Output directory for decoded files.
+        use_gpu (bool): Whether to use GPU backend (True for cuda/opencl, False for cpu).
     """
     try:
         num_images = len(image_list)
         input_bytes = []
         for path in image_list:
             with open(path, "rb") as input_file:
-                # Feed first 1024 bytes to determine the size of the file needed to decode the required Level of Quality.
-                buffer = input_file.read(1024)
-                size = vc6codec.GetRequiredSizeForTargetEchelon(buffer, loq)
-                # Extract only required size to decode the request Level of Quality.
-                input_file.seek(0)
-                buffer = input_file.read(size)
-                input_bytes.append(buffer)
+                input_bytes.append(input_file.read())
 
         vc6decoder = vc6codec.BatchDecoder(
             max_width,
             max_height,
-            vc6codec.CodecBackendType.GPU,
+            vc6codec.CodecBackendType.GPU if use_gpu else vc6codec.CodecBackendType.CPU,
             vc6codec.PictureFormat.RGB_8,
             vc6codec.ImageMemoryType.CPU,
             False,
             batch_size,
-            num_images)
+            num_images
+        )
 
         decoded_images = vc6decoder.decode(input_bytes, loq)
         for (path, img) in zip(image_list, decoded_images):
@@ -78,13 +64,14 @@ def decode_images(vc6codec, image_list: List[str], max_width: int, max_height: i
 def main() -> None:
     """Main function."""
     parser = create_base_argument_parser(
-        "Decode all VC-6 images in a directory (or single VC-6 image) to Raw RGB format by only partially fetching required bytes."
+        "Decode all VC-6 images in a directory to Raw RGB format."
     )
     add_batch_size_argument(parser, default=10)
     add_loq_argument(parser)
+    add_backend_argument(parser, default="cuda", choices=["cpu", "cuda", "opencl"])
     args = parser.parse_args()
 
-    vc6codec, vc6version, modname = load_codec("cpu")
+    vc6codec, vc6version, modname = load_codec(args.backend)
     print(f"Using VC-6 version: {vc6version} via {modname}")
 
     setup_output_directory(args.destination_dir)
@@ -95,8 +82,9 @@ def main() -> None:
         print(f"No .vc6 images found at: {args.source}", file=sys.stderr)
         sys.exit(1)
 
+    use_gpu = args.backend in ("cuda", "opencl")
     decode_images(vc6codec, image_list, args.maxwidth, args.maxheight,
-                  args.batch_size, args.loq, args.destination_dir)
+                  args.batch_size, args.loq, args.destination_dir, use_gpu)
 
 
 if __name__ == "__main__":
