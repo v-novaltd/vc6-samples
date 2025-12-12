@@ -60,44 +60,42 @@ All samples support `--help` to display available options.
 
 ```bash
 # Encode using CUDA backend (lossy mode, default)
-cd encode/
+
 python encoder.py --backend cuda -s input_images/ -d encoded/
 
 # Encode using OpenCL backend
-python encoder.py --backend opencl -s input_images/ -d encoded/
+python encode/encoder.py --backend opencl -s input_images/ -d encoded/
 
 # Encode using CPU backend in lossless mode
-python encoder.py --backend cpu --mode lossless -s input_images/ -d encoded/
+python encode/encoder.py --backend cpu --mode lossless -s input_images/ -d encoded/
 
 # Batch encode with batched processing (CUDA)
-python batch_encoder.py --backend cuda -b 4 -s input_images/ -d encoded/
+python encode/batch_encoder.py --backend cuda -b 4 -s input_images/ -d encoded/
 
 # Batch encode with OpenCL backend
-python batch_encoder.py --backend opencl -b 4 -s input_images/ -d encoded/
+python encode/batch_encoder.py --backend opencl -b 4 -s input_images/ -d encoded/
 ```
 
 ### Decoding Examples
 
 ```bash
-cd decode/
-
 # Decode using CUDA backend
-python decoder.py --backend cuda -s encoded/ -d decoded/
+python decode/decoder.py --backend cuda -s encoded/ -d decoded/
 
 # Decode using OpenCL backend
-python decoder.py --backend opencl -s encoded/ -d decoded/
+python decode/decoder.py --backend opencl -s encoded/ -d decoded/
 
 # Decode at a lower Level of Quality (faster, smaller output)
-python decoder.py --backend cuda -l 2 -s encoded/ -d decoded/
+python decode/decoder.py --backend cuda -l 2 -s encoded/ -d decoded/
 
 # Experimental batch decoder with CUDA device memory output
-python batch_decoder_experimental.py -b 4 -s encoded/ -d decoded/
+python decode/batch_decoder_experimental.py -b 4 -s encoded/ -d decoded/
 
 # Decode with Region of Interest extraction
-python decode_region_of_interest.py -roix 100 -roiy 100 -roiw 224 -roih 224 -s encoded/ -d decoded/
+python decode/decode_region_of_interest.py -roix 100 -roiy 100 -roiw 224 -roih 224 -s encoded/ -d decoded/
 
 # Decode and resize using NVIDIA DALI
-python decode_resize_cuda_memory_dali.py -rw 224 -rh 224 -s encoded/ -d decoded/
+python decode/decode_resize_cuda_memory_dali.py -rw 224 -rh 224 -s encoded/ -d decoded/
 ```
 
 ---
