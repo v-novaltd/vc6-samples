@@ -11,7 +11,7 @@ LOSSLESS = False
 resize_dims = [(834, 834), (417, 417)]
 resize_params = list(itertools.product(batch_sizes, resize_dims))
 
-DATASET_DIR = "/huggingface"
+DATASET_DIR = "./huggingface"
 RAW_FILES = DATASET_DIR + "/lossless" if LOSSLESS else DATASET_DIR + "/lossy"
 
 TOTAL_IMAGES = 64
