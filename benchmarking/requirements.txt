@@ -1,0 +1,11 @@
+opencv-python
+nvidia-dali-cuda120
+nvtx
+pytest
+matplotlib
+torch
+tqdm
+vc6[cu12]>=7.29.5
+vc6[opencl]>=7.29.5
+datasets
+requests

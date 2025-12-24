@@ -8,3 +8,14 @@ cuda_shader_cache
 video
 *__pycache__*
 *.pyc
+benchmarking/results
+rawInputs*/
+*summmary.json
+*codec_performance.png*
+*codec_performance_vc6.png*
+*results.json
+.pytest_cache/
+test_results_*
+latest_results_dir.txt
+*nsys-rep
+*.sqlite

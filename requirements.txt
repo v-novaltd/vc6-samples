@@ -1,5 +1,5 @@
 pillow==11.3.0
 nvidia-dali-cuda120==1.51.2
+pytest
 vc6[cu12]>=7.29.5
 vc6[opencl]>=7.29.5
-pytest

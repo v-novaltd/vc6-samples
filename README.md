@@ -60,8 +60,7 @@ All samples support `--help` to display available options.
 
 ```bash
 # Encode using CUDA backend (lossy mode, default)
-
-python encoder.py --backend cuda -s input_images/ -d encoded/
+python encode/encoder.py --backend cuda -s input_images/ -d encoded/
 
 # Encode using OpenCL backend
 python encode/encoder.py --backend opencl -s input_images/ -d encoded/
@@ -176,6 +175,69 @@ export CUDA_BIN_LOC=./tmp/clbin  # GPU binary cache location
 For more details refer to the [VC6-SDK documentation](https://docs.v-nova.com/technologies/smpte.vc-6/).
 
 ---
+
+## Benchmarking
+
+The benchmarking suite performs performance comparisons between VC-6 and other codecs (JPEG, JPEG 2000, JPEG 2000 HT) for decode operations. The tests automatically downloads datasets from HuggingFace (V-NovaLtd/UHD-IQA-* repositories) if they don't already exist locally. Datasets are organized by codec type and use consistent file naming across all codecs to ensure fair comparisons. The benchmark measures decode throughput at various batch sizes and generates performance plots showing time per image in milliseconds.
+
+### Dataset Downloads
+
+The benchmarking system automatically downloads test datasets from HuggingFace:
+- **Lossy mode**: Uses `test` split from V-NovaLtd/UHD-IQA-VC6, UHD-IQA-JPG, UHD-IQA-J2K, UHD-IQA-JPH
+- **Lossless mode**: Uses `test` split from V-NovaLtd/UHD-IQA-VC6-Lossless, UHD-IQA-J2K-Lossless, UHD-IQA-JPH-Lossless
+
+Files are downloaded to `/$DATASET_DIR/lossy/` or `/$DATASET_DIR/lossless/` based on the `LOSSLESS` configuration, organized into codec-specific subdirectories (VC-6, JPEG(Lossy only), J2K, J2K_HT). The download process extracts individual files from tar archives and ensures all codecs have matching file sets for consistent benchmarking.
+
+## Requirements
+
+```bash
+pip install -r benchmarking/requirements.txt
+```
+
+## Test Configuration
+
+Test parameters are configured in `benchmarking/global_vars.py`:
+
+Please set the DATASET_DIR to the directory where you want to download all the images for the tests.
+
+| Parameter | Description | Default |
+|-----------|-------------|---------|
+| `batch_sizes` | Batch sizes to test. Make sure this is configured based on available VRAM. | `[64]` |
+| `MAX_VC6_BATCH` | Maximum batch size for non-batch VC-6 tests | `16` |
+| `LOSSLESS` | Use lossless datasets (`True`) or lossy datasets (`False`) | `True` |
+| `TOTAL_IMAGES` | Number of images to use for benchmarking | `64` |
+| `NUM_BATCHES` | Number of batches to run per test | `10` |
+| `WARMUP_RUNS` | Number of warmup batches before timing | `5` |
+| `resize_dims` | Resize dimensions for resize tests | `[(834, 834), (417, 417)]` |
+| `RAW_FILES` | Base directory for dataset files | `/$DATASET_DIR/lossless` or `/$DATASET_DIR/lossy` |
+
+### Dataset Mappings
+
+- **Lossy datasets**: V-NovaLtd/UHD-IQA-VC6 → VC-6, UHD-IQA-JPG → JPEG, UHD-IQA-J2K → J2K, UHD-IQA-JPH → J2K_HT
+- **Lossless datasets**: V-NovaLtd/UHD-IQA-VC6-Lossless → VC-6, UHD-IQA-J2K-Lossless → J2K, UHD-IQA-JPH-Lossless → J2K_HT
+
+## Runtime Configuration
+
+Runtime options are configured in `run_benchmaring.sh`:
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `NSYS_ENABLED` | Set to `1` to enable nsys profiling, `0` to run without profiling | `0` |
+| `ENABLE_DEBUG` | Set to `1` to enable verbose logging (`-vv --log-cli-level=INFO`) | `0` |
+
+The script performs the following steps:
+1. **Dataset Download**: Runs `test_download_datasets.py` to ensure all required datasets are available. If downloads fail, the script aborts.
+2. **Performance Tests**: Runs decode performance tests matching `test_decode_performance`.
+3. **Profiling** (optional): If `NSYS_ENABLED=1`, runs tests with nsys profiling enabled.
+4. **Results Plotting**: Automatically generates performance plots from test results.
+
+## Run Benchmark
+
+```bash
+./run_benchmarking.sh
+```
+
+
 
 ## Contributing
 
