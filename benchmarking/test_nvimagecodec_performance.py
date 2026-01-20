@@ -6,12 +6,11 @@ import time
 
 import pytest
 import torch
+from packaging.version import Version
 
 nvimgcodec = pytest.importorskip(
     "nvidia.nvimgcodec", reason="nvimgcodec package is required for JPEG benchmarking"
 )
-
-from nvidia.dali import pipeline, fn
 
 from global_vars import (
     RAW_FILES,
@@ -20,8 +19,12 @@ from global_vars import (
     NUM_BATCHES,
     batch_sizes,
     resize_params,
+    DEBUG_DUMP_IMAGES,
+    CAPTURE_HW_STATS,
     test_results,
 )
+from debug_dump import dump_decoded_images
+from hw_stats import HWStatsSampler
 
 DALI_THREADS = 8
 JPEG_PARAMS = nvimgcodec.EncodeParams(quality_type=nvimgcodec.QualityType.QUALITY, quality_value=80, color_spec=nvimgcodec.ColorSpec.YCC, jpeg_encode_params=nvimgcodec.JpegEncodeParams())
@@ -51,91 +54,126 @@ class TestNVJPEGCodecPerformance:
             )
         all_images = []
         for file_name in batch[:TOTAL_IMAGES]:
-            all_images.append(file_name.read_bytes())
+            all_images.append((file_name.read_bytes(), file_name.stem))
         return all_images
     
     @pytest.mark.parametrize("batch_size", batch_sizes)
     def test_decode_performance(self, batch_size, images):
         """Measure nvimgcodec decode throughput for pre-generated assets."""
-        if LOSSLESS and self.codec == "JPEG":
-            pytest.skip("Lossless mode is not supported for JPEG codec")
-        if not torch.cuda.is_available():
-            pytest.skip("CUDA is required for nvimgcodec decode benchmarks.")
-        nvdec = nvimgcodec.Decoder()
-        timings = []
-        total_needed = NUM_BATCHES * batch_size
-        cycled_images = list(islice(cycle(images), total_needed))
-        stream = torch.cuda.Stream()
-        stream_handle = stream.cuda_stream
-        start = time.time()
-        for i in range(NUM_BATCHES):
-            with torch.cuda.nvtx.range(f"{self.codec} batch size {batch_size}"):
-                batch_start = time.time()
-                j = i * batch_size
-                k = j + batch_size
-                decoded = nvdec.decode(cycled_images[j:k], cuda_stream=stream_handle)
-                stream.synchronize()
-                timings.append(time.time() - batch_start)
-        end = time.time()
-        assert isinstance(timings, list)
-        # Store results in global dictionary
-        test_results["test_decode_performance"].update({
-            f"batch={batch_size}_codec={self.codec}": {
-                "codec": self.codec,
-                "batch_size": batch_size,
-                "num_batches": NUM_BATCHES,
-                "total_time": end - start,
-                "time_per_batch": timings,
-                "fn": "decode_performance"
-            }
-        })
+        try:
+            if LOSSLESS and self.codec == "JPEG":
+                pytest.skip("Lossless mode is not supported for JPEG codec")
+            if not torch.cuda.is_available():
+                pytest.skip("CUDA is required for nvimgcodec decode benchmarks.")
+            nvdec = nvimgcodec.Decoder()
+            timings = []
+            total_needed = NUM_BATCHES * batch_size
+            cycled_images = list(islice(cycle(images), total_needed))
+            image_buffers = [item[0] for item in cycled_images]
+            image_names = [item[1] for item in cycled_images]
+            stream = torch.cuda.Stream()
+            stream_handle = stream.cuda_stream
+            start = time.time()
+            hw_stats = []
+            for i in range(NUM_BATCHES):
+                with torch.cuda.nvtx.range(f"{self.codec} batch size {batch_size}"):
+                    j = i * batch_size
+                    k = j + batch_size
+                    batch_buffers = image_buffers[j:k]
+                    sampler = HWStatsSampler()
+                    sampler.start()
+                    batch_start = time.time()
+                    decoded = nvdec.decode(batch_buffers, cuda_stream=stream_handle)
+                    stream.synchronize()
+                    timings.append(time.time() - batch_start)
+                    if CAPTURE_HW_STATS:
+                        hw_stats.append(sampler.stop())
+                    if DEBUG_DUMP_IMAGES and i == 0:
+                        batch_names = image_names[j:k]
+                        dump_decoded_images(
+                            self.codec,
+                            decoded,
+                            names=batch_names,
+                            prefix=f"batch{batch_size}",
+                        )
+            end = time.time()
+            assert isinstance(timings, list)
+            # Store results in global dictionary
+            test_results["test_decode_performance"].update({
+                f"batch={batch_size}_codec={self.codec}": {
+                    "codec": self.codec,
+                    "batch_size": batch_size,
+                    "num_batches": NUM_BATCHES,
+                    "total_time": end - start,
+                    "time_per_batch": timings,
+                    "hw_stats": hw_stats if CAPTURE_HW_STATS else None,
+                    "fn": "decode_performance"
+                }
+            })
+        except:
+            pytest.UsageError("Unknown error")
+
 
     @pytest.mark.parametrize("batch_size,resize_dim", resize_params)
     def test_decode_resize_performance(self, batch_size, resize_dim, images):
         """Measure nvimgcodec decode followed by DALI resize throughput."""
-        if not torch.cuda.is_available():
-            pytest.skip("CUDA is required for nvimgcodec decode+resize benchmarks.")
-        nvdec = nvimgcodec.Decoder()
-        timings = []
-        total_needed = NUM_BATCHES * batch_size
-        cycled_images = list(islice(cycle(images), total_needed))
-        stream = torch.cuda.Stream()
-        stream_handle = stream.cuda_stream
-        class ResizePipeline(pipeline.Pipeline):
-            def __init__(self, batch_size, num_threads, device_id, width, height, cuda_stream):
-                super().__init__(batch_size, num_threads, device_id, seed=12, prefetch_queue_depth=1)
-                self.input = fn.external_source(name="decoded_images", batch=True, device="gpu", cuda_stream=cuda_stream)
-                self.resize = fn.resize(self.input, size=(width, height))
-            def define_graph(self):
-                resized = self.resize
-                return resized
-        resize_pipeline = ResizePipeline(batch_size=batch_size, num_threads=DALI_THREADS, 
-                                        device_id=0, width=resize_dim[0], height=resize_dim[1],
-                                        cuda_stream=stream_handle)
-        resize_pipeline.build()
-        start = time.time()
-        for i in range(NUM_BATCHES):
-            batch_start = time.time()
-            j = i * batch_size
-            k = j + batch_size
-            decoded = nvdec.decode(cycled_images[j:k], cuda_stream=stream_handle)
-            resize_pipeline.feed_input("decoded_images", decoded, cuda_stream=stream)
-            resized_images = resize_pipeline.run()
-            stream.synchronize()
-            timings.append(time.time() - batch_start)
-        end = time.time()
-        assert isinstance(timings, list)
-        # Store results in global dictionary
-        test_results["test_decode_resize_performance"].update({ 
-            f"batch={batch_size}_size={resize_dim}_codec={self.codec}" : {
-                "codec": self.codec,
-                "batch_size": batch_size,
-                "num_batches": NUM_BATCHES,
-                "resize_dim": resize_dim,
-                "total_time": end - start,
-                "time_per_batch": timings,
-            }
-        })
+        try:
+            from nvidia.dali import pipeline, fn
+        except ImportError:
+             pytest.skip("nvidia dali package is required for resize benchmarking")
+        try:
+            if not torch.cuda.is_available():
+                pytest.skip("CUDA is required for nvimgcodec decode+resize benchmarks.")
+            nvdec = nvimgcodec.Decoder()
+            timings = []
+            total_needed = NUM_BATCHES * batch_size
+            cycled_images = list(islice(cycle(images), total_needed))
+            image_buffers = [item[0] for item in cycled_images]
+            stream = torch.cuda.Stream()
+            stream_handle = stream.cuda_stream
+            class ResizePipeline(pipeline.Pipeline):
+                def __init__(self, batch_size, num_threads, device_id, width, height, cuda_stream):
+                    super().__init__(batch_size, num_threads, device_id, seed=12, prefetch_queue_depth=1)
+                    self.input = fn.external_source(name="decoded_images", batch=True, device="gpu", cuda_stream=cuda_stream)
+                    self.resize = fn.resize(self.input, size=(width, height))
+                def define_graph(self):
+                    resized = self.resize
+                    return resized
+            resize_pipeline = ResizePipeline(batch_size=batch_size, num_threads=DALI_THREADS, 
+                                            device_id=0, width=resize_dim[0], height=resize_dim[1],
+                                            cuda_stream=stream_handle)
+            resize_pipeline.build()
+            start = time.time()
+            hw_stats = []
+            for i in range(NUM_BATCHES):
+                j = i * batch_size
+                k = j + batch_size
+                sampler = HWStatsSampler()
+                sampler.start()
+                batch_start = time.time()
+                decoded = nvdec.decode(image_buffers[j:k], cuda_stream=stream_handle)
+                resize_pipeline.feed_input("decoded_images", decoded, cuda_stream=stream)
+                resized_images = resize_pipeline.run()
+                stream.synchronize()
+                if CAPTURE_HW_STATS:
+                    hw_stats.append(sampler.stop())
+                timings.append(time.time() - batch_start)
+            end = time.time()
+            assert isinstance(timings, list)
+            # Store results in global dictionary
+            test_results["test_decode_resize_performance"].update({ 
+                f"batch={batch_size}_size={resize_dim}_codec={self.codec}" : {
+                    "codec": self.codec,
+                    "batch_size": batch_size,
+                    "num_batches": NUM_BATCHES,
+                    "resize_dim": resize_dim,
+                    "total_time": end - start,
+                    "time_per_batch": timings,
+                    "hw_stats": hw_stats if CAPTURE_HW_STATS else None,
+                }
+            })
+        except:
+            pytest.UsageError("Unknown error")
 
 
 class TestNVJ2KCodecPerformance(TestNVJPEGCodecPerformance):

@@ -17,10 +17,14 @@ if [ "$ENABLE_DEBUG" -eq 1 ]; then
   DEBUG_ARG="-vv --log-cli-level=INFO"
 fi
 
-# Run download tests first to ensure datasets are available
-echo "Running dataset download tests to ensure datasets are available for performance tests..."
-if ! pytest benchmarking/test_download_datasets.py -s $DEBUG_ARG; then
-  echo "ERROR: Dataset download tests failed. Aborting performance tests."
+# Run download step first to ensure datasets are available
+echo "Running dataset download step to ensure datasets are available for performance tests..."
+DOWNLOAD_ARGS=""
+if [ "$ENABLE_DEBUG" -eq 1 ]; then
+  DOWNLOAD_ARGS="--verbose"
+fi
+if ! python benchmarking/test_download_datasets.py $DOWNLOAD_ARGS; then
+  echo "ERROR: Dataset download step failed. Aborting performance tests."
   exit 1
 fi
 

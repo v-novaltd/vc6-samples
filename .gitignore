@@ -19,4 +19,5 @@ test_results_*
 latest_results_dir.txt
 *nsys-rep
 *.sqlite
-huggingface/*
+huggingface/
+debug_dump_images/

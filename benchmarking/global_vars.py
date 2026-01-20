@@ -8,6 +8,9 @@ import logging
 batch_sizes = [8, 16, 32, 64, 128, 256]
 MAX_VC6_BATCH = 16
 LOSSLESS = False
+DEBUG_DUMP_IMAGES = False
+CAPTURE_HW_STATS = True
+DEBUG_DUMP_DIR = "debug_dump_images"
 resize_dims = [(834, 834), (417, 417)]
 resize_params = list(itertools.product(batch_sizes, resize_dims))
 
@@ -38,8 +41,8 @@ CODEC_EXTENSIONS = {
 }
 
 # Global number of batches for all tests
-NUM_BATCHES = 10  # Set as needed
-WARMUP_RUNS = 5
+NUM_BATCHES = 100  # Set as needed
+WARMUP_RUNS = 50
 
 test_results = defaultdict(dict)
 LOGGER = logging.getLogger("DECODE_PERF")
