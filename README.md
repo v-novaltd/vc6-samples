@@ -20,7 +20,8 @@ pip install -r requirements.txt
 Install the VC-6 SDK package for your preferred backend:
 
 ```bash
-pip install vc6[cu12]     # CUDA backend
+pip install vc6[cuda]     # Latest CUDA backend
+pip install vc6[cu120]    # Legacy CUDA backend, compatible with CUDA 12.0+
 pip install vc6[opencl]   # OpenCL backend
 ```
 
@@ -102,7 +103,7 @@ python decode/decode_resize_cuda_memory_dali.py -rw 224 -rh 224 -s encoded/ -d d
 ### Basic Encoder/Decoder Usage
 
 ```python
-from vnova.vc6_cu12 import codec as vc6codec
+from vnova.vc6_cuda import codec as vc6codec
 
 # Setup an encoder
 encoder = vc6codec.EncoderSync(
@@ -130,11 +131,11 @@ decoder.write(encoded_image.memoryview, "output.rgb")
 
 ### CUDA Device Memory Output
 
-When using `vc6_cu12`, decoder output can be CUDA device memory. Output images expose `__cuda_array_interface__` for interoperability with CuPy, PyTorch, and nvImageCodec.
+When using `vc6_cuda`, decoder output can be CUDA device memory. Output images expose `__cuda_array_interface__` for interoperability with CuPy, PyTorch, and nvImageCodec.
 
 ```python
 import cupy
-from vnova.vc6_cu12 import codec as vc6codec
+from vnova.vc6_cuda import codec as vc6codec
 
 # Setup decoder with CUDA device output
 decoder = vc6codec.DecoderSync(
@@ -167,7 +168,7 @@ export OCL_BIN_LOC=./tmp/clbin   # GPU binary cache location
 export OCL_DEVICE=nvidia          # Target GPU hint
 ```
 
-### CUDA (vc6_cu12)
+### CUDA (vc6_cuda)
 ```bash
 export CUDA_BIN_LOC=./tmp/clbin  # GPU binary cache location
 ```
@@ -186,7 +187,7 @@ The benchmarking system automatically downloads test datasets from HuggingFace:
 - **Lossy mode**: Uses `test` split from V-NovaLtd/UHD-IQA-VC6, UHD-IQA-JPG, UHD-IQA-J2K, UHD-IQA-JPH
 - **Lossless mode**: Uses `test` split from V-NovaLtd/UHD-IQA-VC6-Lossless, UHD-IQA-J2K-Lossless, UHD-IQA-JPH-Lossless
 
-Files are downloaded to `/$DATASET_DIR/lossy/` or `/$DATASET_DIR/lossless/` based on the `LOSSLESS` configuration, organized into codec-specific subdirectories (VC-6, JPEG(Lossy only), J2K, J2K_HT). The download process extracts individual files from tar archives and ensures all codecs have matching file sets for consistent benchmarking.
+Files are downloaded to `DATASET_DIR/lossy/` or `DATASET_DIR/lossless/` based on the `LOSSLESS` configuration, organized into codec-specific subdirectories (VC-6, JPEG (lossy only), J2K, J2K_HT). The download process extracts individual files from tar archives and ensures all codecs have matching file sets for consistent benchmarking.
 
 ## Requirements
 
@@ -196,20 +197,50 @@ pip install -r benchmarking/requirements.txt
 
 ## Test Configuration
 
-Test parameters are configured in `benchmarking/global_vars.py`:
+Test parameters are configured in `benchmarking/global_vars.py`.
+Please set `DATASET_DIR` to the directory where you want to download all the images for the tests.
 
-Please set the DATASET_DIR to the directory where you want to download all the images for the tests.
+### Defaults
 
 | Parameter | Description | Default |
 |-----------|-------------|---------|
-| `batch_sizes` | Batch sizes to test. Make sure this is configured based on available VRAM. | `[64]` |
+| `batch_sizes` | Batch sizes to test. Configure based on available VRAM. | `[8, 16, 32, 64, 128, 256]` |
 | `MAX_VC6_BATCH` | Maximum batch size for non-batch VC-6 tests | `16` |
-| `LOSSLESS` | Use lossless datasets (`True`) or lossy datasets (`False`) | `True` |
-| `TOTAL_IMAGES` | Number of images to use for benchmarking | `64` |
-| `NUM_BATCHES` | Number of batches to run per test | `10` |
-| `WARMUP_RUNS` | Number of warmup batches before timing | `5` |
+| `LOSSLESS` | Use lossless datasets (`True`) or lossy datasets (`False`) | `False` |
+| `DEBUG_DUMP_IMAGES` | Dump decoded images as PNGs under `debug_dump_images/<codec>` | `False` |
+| `CAPTURE_HW_STATS` | Capture per-batch CPU/GPU utilization samples | `True` |
+| `DEBUG_DUMP_DIR` | Output directory for debug image dumps | `debug_dump_images` |
 | `resize_dims` | Resize dimensions for resize tests | `[(834, 834), (417, 417)]` |
-| `RAW_FILES` | Base directory for dataset files | `/$DATASET_DIR/lossless` or `/$DATASET_DIR/lossy` |
+| `resize_params` | Batch/resize combinations derived from `batch_sizes` and `resize_dims` | `list(itertools.product(batch_sizes, resize_dims))` |
+| `DATASET_DIR` | Root directory for datasets | `huggingface` |
+| `RAW_FILES` | Base directory for dataset files | `DATASET_DIR + "/lossless" if LOSSLESS else DATASET_DIR + "/lossy"` |
+| `TOTAL_IMAGES` | Number of images to use for benchmarking | `256` |
+| `NUM_BATCHES` | Number of batches to run per test | `100` |
+| `WARMUP_RUNS` | Number of warmup batches before timing | `50` |
+
+### Dataset and Codec Mappings
+
+```python
+DATASET_MAPPING_LOSSY = {
+    "V-NovaLtd/UHD-IQA-VC6": "VC-6",
+    "V-NovaLtd/UHD-IQA-JPG": "JPEG",
+    "V-NovaLtd/UHD-IQA-J2K": "J2K",
+    "V-NovaLtd/UHD-IQA-JPH": "J2K_HT",
+}
+
+DATASET_MAPPING_LOSSLESS = {
+    "V-NovaLtd/UHD-IQA-VC6-Lossless": "VC-6",
+    "V-NovaLtd/UHD-IQA-J2K-Lossless": "J2K",
+    "V-NovaLtd/UHD-IQA-JPH-Lossless": "J2K_HT",
+}
+
+CODEC_EXTENSIONS = {
+    "VC-6": ".vc6",
+    "JPEG": ".jpg",
+    "J2K": ".jp2",
+    "J2K_HT": ".jp2",
+}
+```
 
 ### Dataset Mappings
 
@@ -230,6 +261,12 @@ The script performs the following steps:
 2. **Performance Tests**: Runs decode performance tests matching `test_decode_performance`.
 3. **Profiling** (optional): If `NSYS_ENABLED=1`, runs tests with nsys profiling enabled.
 4. **Results Plotting**: Automatically generates performance plots from test results.
+5. **HTML Report**: `benchmarking/plot_results.py` writes `benchmark_report.html` with tabs per codec/LOQ and per-run metrics.
+
+### Windows Notes
+
+- The HTML report uses PowerShell or WMIC to collect CPU and memory info on Windows.
+- GPU details rely on `nvidia-smi` being available on PATH.
 
 ## Run Benchmark
 

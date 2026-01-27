@@ -74,12 +74,12 @@ def load_codec(backend: str):
     """
     if backend == "cuda":
         try:
-            from vnova.vc6_cu12 import codec as vc6codec
-            from vnova.vc6_cu12 import __version__ as vc6version
-            return vc6codec, vc6version, "vnova.vc6_cu12"
+            from vnova.vc6_cuda import codec as vc6codec
+            from vnova.vc6_cuda import __version__ as vc6version
+            return vc6codec, vc6version, "vnova.vc6_cuda"
         except ModuleNotFoundError:
             sys.exit(
-                "Missing dependency: 'vnova.vc6_cu12'.\n"
+                "Missing dependency: 'vnova.vc6_cuda'.\n"
                 "CUDA backend requires the VC-6 CUDA Python SDK.\n"
                 "Please refer README.md for install instructions."
             )
@@ -102,12 +102,12 @@ def load_codec(backend: str):
             return vc6codec, vc6version, "vnova.vc6_opencl"
         except ModuleNotFoundError:
             try:
-                from vnova.vc6_cu12 import codec as vc6codec
-                from vnova.vc6_cu12 import __version__ as vc6version
-                return vc6codec, vc6version, "vnova.vc6_cu12"
+                from vnova.vc6_cuda import codec as vc6codec
+                from vnova.vc6_cuda import __version__ as vc6version
+                return vc6codec, vc6version, "vnova.vc6_cuda"
             except ModuleNotFoundError:
                 sys.exit(
-                    "Missing dependency: need 'vnova.vc6_opencl' or 'vnova.vc6_cu12'.\n"
+                    "Missing dependency: need 'vnova.vc6_opencl' or 'vnova.vc6_cuda'.\n"
                     "This sample requires VC-6 Python SDK installed.\n"
                     "Please refer README.md for install instructions."
                 )

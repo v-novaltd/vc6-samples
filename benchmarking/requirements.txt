@@ -5,7 +5,7 @@ pytest
 matplotlib
 torch
 tqdm
-vc6[cu12]>=7.29.5
-vc6[opencl]>=7.29.5
+vc6[cuda]>=7.32.6
+vc6[opencl]>=7.32.6
 datasets
 requests
