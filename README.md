@@ -49,9 +49,9 @@ The first time the codec is imported, you'll be prompted to accept the EULA, use
 | `decode/decoder.py` | DecoderSync | | ✓ | ✓ | ✓ |
 | `decode/decode_region_of_interest.py` | DecoderSync | with Region of Interest extraction | ✓ | ✓ | ✓ |
 | `decode/thumbnail_roi_sample.py` | DecoderAsync | Generates thumbnails and ROI extracts at different LOQs | ✓ | ✓ | ✓ | 
-| `decode/batch_decoder_experimental.py` | BatchDecoderSync | | | ✓ | |
-| `decode/partial_fetch_and_decode.py` | BatchDecoderSync |  partial fetch (only reads bytes needed for target LOQ) | | ✓ | |
-| `decode/decode_resize_cuda_memory_dali.py` | BatchDecoderSync native Linux or WSL2 Linux environment only) | CUDA Decoder with DALI-based resize | | ✓ | |
+| `decode/batch_decoder_experimental.py` | BatchDecoder_exp | | | ✓ | |
+| `decode/partial_fetch_and_decode.py` | BatchDecoder_exp |  partial fetch (only reads bytes needed for target LOQ) | | ✓ | |
+| `decode/decode_resize_cuda_memory_dali.py` | BatchDecoder_exp native Linux or WSL2 Linux environment only) | CUDA Decoder with DALI-based resize | | ✓ | |
 
 ---
 
@@ -300,7 +300,7 @@ The script performs the following steps:
 1. **Dataset Download**: Runs `test_download_datasets.py` to ensure all required datasets are available. If downloads fail, the script aborts.
 2. **Performance Tests**: Runs decode performance tests matching `test_decode_performance`.
 3. **Profiling** (optional): If `NSYS_ENABLED=1`, runs tests with nsys profiling enabled.
-4. **Results Plotting**: Automatically generates performance plots from test results, including ROI truncated-bitstream plots when ROI benchmarks are present.
+4. **Results Plotting**: Automatically generates performance plots from test results.
 5. **HTML Report**: `benchmarking/plot_results.py` writes `benchmark_report.html` with tabs per codec/LOQ and per-run metrics.
 
 ### Windows Notes
