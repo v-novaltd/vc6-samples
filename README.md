@@ -71,9 +71,6 @@ python encode/encoder.py --backend opencl -s input_images/ -d encoded/
 # Encode using CPU backend in lossless mode
 python encode/encoder.py --backend cpu --mode lossless -s input_images/ -d encoded/
 
-# Encode using Metal backend (macOS only)
-python encode/encoder.py --backend metal -s input_images/ -d encoded/
-
 # Batch encode with batched processing (CUDA)
 python encode/batch_encoder.py --backend cuda -b 4 -s input_images/ -d encoded/
 
@@ -255,9 +252,6 @@ Please set `DATASET_DIR` to the directory where you want to download all the ima
 | `DEBUG_DUMP_DIR` | Output directory for debug image dumps | `debug_dump_images` |
 | `resize_dims` | Resize dimensions for resize tests | `[(834, 834), (417, 417)]` |
 | `resize_params` | Batch/resize combinations derived from `batch_sizes` and `resize_dims` | `list(itertools.product(batch_sizes, resize_dims))` |
-| `ROI_TB_BACKEND` | Backend package used for ROI truncated-bitstream benchmarking | `"cuda"` |
-| `ROI_TB_GRID_CONFIGS` | Grid sizes used by the ROI TB grid-density scenario | `[(1, 1), (2, 2), (3, 3), (4, 4), (5, 5), (10, 10)]` |
-| `ROI_TB_FIXED_GRID` | Fixed grid used by the ROI TB LoQ sweep scenario | `(2, 2)` |
 | `DATASET_DIR` | Root directory for datasets | `huggingface` |
 | `RAW_FILES` | Base directory for dataset files | `DATASET_DIR + "/lossless" if LOSSLESS else DATASET_DIR + "/lossy"` |
 | `TOTAL_IMAGES` | Number of images to use for benchmarking | `256` |
@@ -308,6 +302,11 @@ The script performs the following steps:
 3. **Profiling** (optional): If `NSYS_ENABLED=1`, runs tests with nsys profiling enabled.
 4. **Results Plotting**: Automatically generates performance plots from test results, including ROI truncated-bitstream plots when ROI benchmarks are present.
 5. **HTML Report**: `benchmarking/plot_results.py` writes `benchmark_report.html` with tabs per codec/LOQ and per-run metrics.
+
+### Windows Notes
+
+- The HTML report uses PowerShell or WMIC to collect CPU and memory info on Windows.
+- GPU details rely on `nvidia-smi` being available on PATH.
 
 ## Run Benchmark
 
