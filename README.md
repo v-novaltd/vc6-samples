@@ -10,7 +10,6 @@
 - Python 3.8+ (for VC-6)
 - Python 3.10+ (for the optional NVIDIA DALI sample on native Linux or WSL2)
 - CUDA 12.9 (for CUDA backend)
-- macOS with Metal support (for Metal backend)
 
 ```bash
 pip install -r requirements.txt
@@ -23,9 +22,9 @@ On native Windows, `pip install -r requirements.txt` will not install NVIDIA DAL
 Install the VC-6 SDK package for your preferred backend:
 
 ```bash
-pip install vc6[cu12]     # CUDA backend (Linux, Windows)
-pip install vc6[opencl]   # OpenCL backend (Linux, Windows, macOS)
-pip install vc6[metal]    # Metal backend (macOS)
+pip install vc6[cuda]     # CUDA backend (Linux, Windows)
+pip install vc6[cu120]    # Legacy CUDA backend, compatible with CUDA 12.0+
+pip install vc6[opencl]   # OpenCL backend (Linux, Windows)
 ```
 
 ## First Run - EULA Acceptance
@@ -38,22 +37,21 @@ The first time the codec is imported, you'll be prompted to accept the EULA, use
 
 ### Encoding
 
-| Script | Description | CPU | CUDA | OpenCL | Metal |
-|--------|-------------|-----|------|--------|-------|
-| `encode/encoder.py` | VC-6 EncoderSync | ✓ | ✓ | ✓ | ✓ |
-| `encode/batch_encoder.py` | VC-6 BatchEncoder | | ✓ | ✓ | ✓ |
+| Script | Description | CPU | CUDA | OpenCL |
+|--------|-------------|-----|------|--------|
+| `encode/encoder.py` | VC-6 EncoderSync | ✓ | ✓ | ✓ |
+| `encode/batch_encoder.py` | VC-6 BatchEncoder | | ✓ | ✓ |
 
 ### Decoding
 
-| Script | Decoder | Description | CPU | CUDA | OpenCL | Metal |
-|--------|---------|-------------|-----|------|--------|-------|
-| `decode/decoder.py` | DecoderSync | | ✓ | ✓ | ✓ | ✓ |
-| `decode/decode_region_of_interest.py` | DecoderSync | with Region of Interest extraction | ✓ | ✓ | ✓ | ✓ |
-| `decode/thumbnail_roi_sample.py` | DecoderAsync | Generates thumbnails and ROI extracts at different LOQs | ✓ | ✓ | ✓ | ✓ |
-| `decode/batch_decoder.py` | BatchDecoderSync | | | ✓ | | |
-| `decode/partial_fetch_and_decode.py` | BatchDecoderSync |  partial fetch (only reads bytes needed for target LOQ) | | ✓ | | |
-| `decode/decode_resize_cuda_memory_dali.py` | BatchDecoderSync native Linux or WSL2 Linux environment only) | CUDA Decoder with DALI-based resize | | ✓ | | |
-| `decode/partial_roi_fetch_and_decode.py` | BatchDecoderSync | ROI TruncatedBitstream producer/consumer reconstruction demo | | ✓ | | |
+| Script | Decoder | Description | CPU | CUDA | OpenCL |
+|--------|---------|-------------|-----|------|--------|
+| `decode/decoder.py` | DecoderSync | | ✓ | ✓ | ✓ |
+| `decode/decode_region_of_interest.py` | DecoderSync | with Region of Interest extraction | ✓ | ✓ | ✓ |
+| `decode/thumbnail_roi_sample.py` | DecoderAsync | Generates thumbnails and ROI extracts at different LOQs | ✓ | ✓ | ✓ | 
+| `decode/batch_decoder_experimental.py` | BatchDecoderSync | | | ✓ | |
+| `decode/partial_fetch_and_decode.py` | BatchDecoderSync |  partial fetch (only reads bytes needed for target LOQ) | | ✓ | |
+| `decode/decode_resize_cuda_memory_dali.py` | BatchDecoderSync native Linux or WSL2 Linux environment only) | CUDA Decoder with DALI-based resize | | ✓ | |
 
 ---
 
@@ -99,7 +97,7 @@ python decode/decoder.py --backend metal -s encoded/ -d decoded/
 python decode/decoder.py --backend cuda -l 2 -s encoded/ -d decoded/
 
 # Experimental batch decoder with CUDA device memory output
-python decode/batch_decoder.py -b 4 -s encoded/ -d decoded/
+python decode/batch_decoder_experimental.py -b 4 -s encoded/ -d decoded/
 
 # Decode with Region of Interest extraction
 python decode/decode_region_of_interest.py -roix 100 -roiy 100 -roiw 224 -roih 224 -s encoded/ -d decoded/
@@ -310,32 +308,6 @@ The script performs the following steps:
 3. **Profiling** (optional): If `NSYS_ENABLED=1`, runs tests with nsys profiling enabled.
 4. **Results Plotting**: Automatically generates performance plots from test results, including ROI truncated-bitstream plots when ROI benchmarks are present.
 5. **HTML Report**: `benchmarking/plot_results.py` writes `benchmark_report.html` with tabs per codec/LOQ and per-run metrics.
-
-### ROI Truncated-Bitstream Benchmark
-
-The benchmarking suite also includes ROI truncated-bitstream performance tests in `benchmarking/test_vc6_roi_tb_performance.py`.
-
-These tests reuse the VC-6 benchmark dataset, process up to `TOTAL_IMAGES` inputs per configuration, and discard the first `WARMUP_RUNS` samples during aggregation. The timed operation is ROI truncated-bitstream creation via `TruncatedBitstream.from_parser(...)`; they do not measure full ROI decode throughput.
-
-The benchmark currently includes:
-
-- `test_decode_performance_roi_tb_grid`: grid-density sweep at fixed `LOQ=0`
-- `test_decode_performance_roi_tb_loq`: LoQ sweep with a fixed grid
-
-The session writes the usual benchmark artifacts into the timestamped output directory created by `benchmarking/conftest.py`, including:
-
-- `test_results.json`
-- `summmary.json`
-- `vc6_roi_tb_grid_performance.png`
-- `vc6_roi_tb_loq_performance.png`
-- `benchmark_report.html`
-
-For the detailed ROI TB benchmark description, including case definitions, output files, metrics, baselines, and plot interpretation, see [`benchmarking/roi_tb_benchmark.md`](benchmarking/roi_tb_benchmark.md).
-
-### Windows Notes
-
-- The HTML report uses PowerShell or WMIC to collect CPU and memory info on Windows.
-- GPU details rely on `nvidia-smi` being available on PATH.
 
 ## Run Benchmark
 
