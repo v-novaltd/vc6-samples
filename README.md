@@ -8,21 +8,24 @@
 ## Requirements
 
 - Python 3.8+ (for VC-6)
-- Python 3.10+ (for NVIDIA DALI)
+- Python 3.10+ (for the optional NVIDIA DALI sample on native Linux or WSL2)
 - CUDA 12.9 (for CUDA backend)
+- macOS with Metal support (for Metal backend)
 
 ```bash
 pip install -r requirements.txt
 ```
+
+On native Windows, `pip install -r requirements.txt` will not install NVIDIA DALI. NVIDIA's prebuilt DALI wheels are Linux-only, so the DALI resize sample is intended for native Linux or for a Linux environment inside WSL2.
 
 ## Installation
 
 Install the VC-6 SDK package for your preferred backend:
 
 ```bash
-pip install vc6[cuda]     # Latest CUDA backend
-pip install vc6[cu120]    # Legacy CUDA backend, compatible with CUDA 12.0+
-pip install vc6[opencl]   # OpenCL backend
+pip install vc6[cu12]     # CUDA backend (Linux, Windows)
+pip install vc6[opencl]   # OpenCL backend (Linux, Windows, macOS)
+pip install vc6[metal]    # Metal backend (macOS)
 ```
 
 ## First Run - EULA Acceptance
@@ -35,21 +38,22 @@ The first time the codec is imported, you'll be prompted to accept the EULA, use
 
 ### Encoding
 
-| Script | Description |
-|--------|-------------|
-| `encode/encoder.py` | VC-6 Encoder (backends: CPU, CUDA, OpenCL) |
-| `encode/batch_encoder.py` | VC-6 Batch Encoder (CUDA/OpenCL) |
+| Script | Description | CPU | CUDA | OpenCL | Metal |
+|--------|-------------|-----|------|--------|-------|
+| `encode/encoder.py` | VC-6 EncoderSync | ✓ | ✓ | ✓ | ✓ |
+| `encode/batch_encoder.py` | VC-6 BatchEncoder | | ✓ | ✓ | ✓ |
 
 ### Decoding
 
-| Script | Description |
-|--------|-------------|
-| `decode/decoder.py` | VC-6 Batch Decoder (backends: CPU, CUDA, OpenCL) |
-| `decode/batch_decoder_experimental.py` | VC-6 Experimental Batch Decoder (backend: CUDA) |
-| `decode/partial_fetch_and_decode.py` | Decoder with partial fetch (only reads bytes needed for target LOQ) |
-| `decode/decode_region_of_interest.py` | Decoder with Region of Interest extraction |
-| `decode/thumbnail_roi_sample.py` | Generates thumbnails and ROI extracts at different LOQs |
-| `decode/decode_resize_cuda_memory_dali.py` | CUDA Decoder with DALI-based resize |
+| Script | Decoder | Description | CPU | CUDA | OpenCL | Metal |
+|--------|---------|-------------|-----|------|--------|-------|
+| `decode/decoder.py` | DecoderSync | | ✓ | ✓ | ✓ | ✓ |
+| `decode/decode_region_of_interest.py` | DecoderSync | with Region of Interest extraction | ✓ | ✓ | ✓ | ✓ |
+| `decode/thumbnail_roi_sample.py` | DecoderAsync | Generates thumbnails and ROI extracts at different LOQs | ✓ | ✓ | ✓ | ✓ |
+| `decode/batch_decoder.py` | BatchDecoderSync | | | ✓ | | |
+| `decode/partial_fetch_and_decode.py` | BatchDecoderSync |  partial fetch (only reads bytes needed for target LOQ) | | ✓ | | |
+| `decode/decode_resize_cuda_memory_dali.py` | BatchDecoderSync native Linux or WSL2 Linux environment only) | CUDA Decoder with DALI-based resize | | ✓ | | |
+| `decode/partial_roi_fetch_and_decode.py` | BatchDecoderSync | ROI TruncatedBitstream producer/consumer reconstruction demo | | ✓ | | |
 
 ---
 
@@ -69,6 +73,9 @@ python encode/encoder.py --backend opencl -s input_images/ -d encoded/
 # Encode using CPU backend in lossless mode
 python encode/encoder.py --backend cpu --mode lossless -s input_images/ -d encoded/
 
+# Encode using Metal backend (macOS only)
+python encode/encoder.py --backend metal -s input_images/ -d encoded/
+
 # Batch encode with batched processing (CUDA)
 python encode/batch_encoder.py --backend cuda -b 4 -s input_images/ -d encoded/
 
@@ -85,17 +92,23 @@ python decode/decoder.py --backend cuda -s encoded/ -d decoded/
 # Decode using OpenCL backend
 python decode/decoder.py --backend opencl -s encoded/ -d decoded/
 
+# Decode using Metal backend (macOS only)
+python decode/decoder.py --backend metal -s encoded/ -d decoded/
+
 # Decode at a lower Level of Quality (faster, smaller output)
 python decode/decoder.py --backend cuda -l 2 -s encoded/ -d decoded/
 
 # Experimental batch decoder with CUDA device memory output
-python decode/batch_decoder_experimental.py -b 4 -s encoded/ -d decoded/
+python decode/batch_decoder.py -b 4 -s encoded/ -d decoded/
 
 # Decode with Region of Interest extraction
 python decode/decode_region_of_interest.py -roix 100 -roiy 100 -roiw 224 -roih 224 -s encoded/ -d decoded/
 
-# Decode and resize using NVIDIA DALI
+# Decode and resize using NVIDIA DALI (native Linux or WSL2 Linux environment only)
 python decode/decode_resize_cuda_memory_dali.py -rw 224 -rh 224 -s encoded/ -d decoded/
+
+# Decode using ROI TruncatedBitstream producer/consumer flow
+python decode/partial_roi_fetch_and_decode.py --backend cuda -s encoded/ -d decoded/
 ```
 
 ---
@@ -181,6 +194,27 @@ For more details refer to the [VC6-SDK documentation](https://docs.v-nova.com/te
 
 The benchmarking suite performs performance comparisons between VC-6 and other codecs (JPEG, JPEG 2000, JPEG 2000 HT) for decode operations. The tests automatically downloads datasets from HuggingFace (V-NovaLtd/UHD-IQA-* repositories) if they don't already exist locally. Datasets are organized by codec type and use consistent file naming across all codecs to ensure fair comparisons. The benchmark measures decode throughput at various batch sizes and generates performance plots showing time per image in milliseconds.
 
+## Results
+
+Here are decode performance benchmarks for V-Nova’s SDK version 8.3.0, implementing SMPTE VC-6 with CUDA acceleration, compared with NVIDIA nvImageCodec 0.6.1.37 using JPEG, JPEG 2000 (J2K), and High-Throughput JPEG 2000 (HTJ2K). The benchmark uses the [IQA 4K dataset](https://huggingface.co/V-NovaLtd).
+
+For reproducibility, tests were run on an AWS g6e.8xlarge instance equipped with an NVIDIA L40S GPU. This platform supports hardware-accelerated JPEG decoding through nvImageCodec, where applicable, and GPU-accelerated decode paths for the tested formats.
+
+The benchmark measures per-image decode time across multiple batch sizes, in both lossy and lossless configurations. Lossy tests compare VC-6, JPEG, J2K, and HTJ2K. Lossless tests compare VC-6, J2K, and HTJ2K, as JPEG does not support lossless coding.
+
+Under these test conditions, VC-6 achieved faster per-image decode times than the tested nvImageCodec baselines across both lossy and lossless configurations. The advantage increases when VC-6 is decoded at lower Levels of Quality (LoQs), where only the resolution required by a given AI model is reconstructed, i.e., partial decoding.
+
+This emphasises VC-6's relevance for vision AI pipelines, where models typically operate on lower-resolution inputs and not always require full-resolution reconstruction; thereby reducing preprocessing time and increasing throughput.
+
+
+## VC-6 HT vs nvImageCodec Batch Decode Performance
+![VC-6 HT vs nvImageCodec batch decode performance](benchmarking/Graphs/AllCodecs.png)
+
+
+For more details results please refer to this [Benchmarking README](./benchmarking/Benchmarking_README.md)
+
+
+
 ### Dataset Downloads
 
 The benchmarking system automatically downloads test datasets from HuggingFace:
@@ -194,6 +228,17 @@ Files are downloaded to `DATASET_DIR/lossy/` or `DATASET_DIR/lossless/` based on
 ```bash
 pip install -r benchmarking/requirements.txt
 ```
+
+The benchmarking scripts require a CUDA-enabled `torch` build. Depending on your platform and existing environment, `pip install -r benchmarking/requirements.txt` may leave you with a CPU-only PyTorch install.
+If that happens, replace `torch` before running the benchmarks:
+
+```bash
+pip uninstall -y torch
+pip install --upgrade --index-url https://download.pytorch.org/whl/cu128 torch
+```
+
+The DALI dependency in the benchmarking requirements is available only in Linux environments, including native Linux and Python running inside WSL2. It is not available on native Windows. Resize benchmarks that use DALI are skipped automatically when the package is unavailable.
+The benchmarking suite also requires `nvidia-nvimgcodec-cu12`, which is included in `benchmarking/requirements.txt`. Recent `nvidia-nvimgcodec-cu12` builds expose `nvimgcodec.ColorSpec.SYCC`, so the benchmark code accepts `SYCC` and falls back to `YCC` for older package variants.
 
 ## Test Configuration
 
@@ -212,6 +257,9 @@ Please set `DATASET_DIR` to the directory where you want to download all the ima
 | `DEBUG_DUMP_DIR` | Output directory for debug image dumps | `debug_dump_images` |
 | `resize_dims` | Resize dimensions for resize tests | `[(834, 834), (417, 417)]` |
 | `resize_params` | Batch/resize combinations derived from `batch_sizes` and `resize_dims` | `list(itertools.product(batch_sizes, resize_dims))` |
+| `ROI_TB_BACKEND` | Backend package used for ROI truncated-bitstream benchmarking | `"cuda"` |
+| `ROI_TB_GRID_CONFIGS` | Grid sizes used by the ROI TB grid-density scenario | `[(1, 1), (2, 2), (3, 3), (4, 4), (5, 5), (10, 10)]` |
+| `ROI_TB_FIXED_GRID` | Fixed grid used by the ROI TB LoQ sweep scenario | `(2, 2)` |
 | `DATASET_DIR` | Root directory for datasets | `huggingface` |
 | `RAW_FILES` | Base directory for dataset files | `DATASET_DIR + "/lossless" if LOSSLESS else DATASET_DIR + "/lossy"` |
 | `TOTAL_IMAGES` | Number of images to use for benchmarking | `256` |
@@ -260,8 +308,29 @@ The script performs the following steps:
 1. **Dataset Download**: Runs `test_download_datasets.py` to ensure all required datasets are available. If downloads fail, the script aborts.
 2. **Performance Tests**: Runs decode performance tests matching `test_decode_performance`.
 3. **Profiling** (optional): If `NSYS_ENABLED=1`, runs tests with nsys profiling enabled.
-4. **Results Plotting**: Automatically generates performance plots from test results.
+4. **Results Plotting**: Automatically generates performance plots from test results, including ROI truncated-bitstream plots when ROI benchmarks are present.
 5. **HTML Report**: `benchmarking/plot_results.py` writes `benchmark_report.html` with tabs per codec/LOQ and per-run metrics.
+
+### ROI Truncated-Bitstream Benchmark
+
+The benchmarking suite also includes ROI truncated-bitstream performance tests in `benchmarking/test_vc6_roi_tb_performance.py`.
+
+These tests reuse the VC-6 benchmark dataset, process up to `TOTAL_IMAGES` inputs per configuration, and discard the first `WARMUP_RUNS` samples during aggregation. The timed operation is ROI truncated-bitstream creation via `TruncatedBitstream.from_parser(...)`; they do not measure full ROI decode throughput.
+
+The benchmark currently includes:
+
+- `test_decode_performance_roi_tb_grid`: grid-density sweep at fixed `LOQ=0`
+- `test_decode_performance_roi_tb_loq`: LoQ sweep with a fixed grid
+
+The session writes the usual benchmark artifacts into the timestamped output directory created by `benchmarking/conftest.py`, including:
+
+- `test_results.json`
+- `summmary.json`
+- `vc6_roi_tb_grid_performance.png`
+- `vc6_roi_tb_loq_performance.png`
+- `benchmark_report.html`
+
+For the detailed ROI TB benchmark description, including case definitions, output files, metrics, baselines, and plot interpretation, see [`benchmarking/roi_tb_benchmark.md`](benchmarking/roi_tb_benchmark.md).
 
 ### Windows Notes
 
